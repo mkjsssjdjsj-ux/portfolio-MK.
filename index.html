@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bta3 Design Portfolio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+  <style>
+    body { background:#030712; color:#e2e8f0; }
+    .font-arabic { font-family: Tahoma, Arial, sans-serif; }
+    .animate-spin-reverse { animation: spin 1s linear infinite reverse; }
+    .animate-fade-in { animation: fadeIn .5s ease; }
+    .animate-pulse-slow { animation: pulse 3s ease-in-out infinite; }
+    .animate-gradient-x { background-size: 200% 200%; animation: gradientX 5s ease infinite; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px);} to { opacity:1; transform:translateY(0);} }
+    @keyframes gradientX { 0%,100% { background-position:0% 50%; } 50% { background-position:100% 50%; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // =========================
+    // Firebase config
+    // =========================
+    // ضع بيانات Firebase هنا من مشروعك
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const ADMIN_PASSWORD = "2010";
+    const APP_ID = "mohamed-khaled-portfolio";
+    const CATEGORIES = ["Graphic Design", "Video Design", "Web Design", "App Design", "Branding", "AI Projects"];
+
+    const T = {
+      en: {
+        home: "Home", about: "About", projects: "Projects", allNew: "All New", contact: "Contact",
+        viewProjects: "View Projects", contactMe: "Contact Me", featuredWork: "Featured Work",
+        exploreAll: "Explore All", selectedWorks: "Selected Works", noProjects: "No projects yet.",
+        allNewTitle: "Latest Updates & News", projectOverview: "Project Overview", comments: "Comments",
+        postComment: "Post Comment", letsCollaborate: "Let's Collaborate", sendMessage: "Send Message"
+      },
+      ar: {
+        home: "الرئيسية", about: "من نحن", projects: "المشاريع", allNew: "كل جديد", contact: "اتصل بنا",
+        viewProjects: "عرض المشاريع", contactMe: "اتصل بي", featuredWork: "أعمال مميزة",
+        exploreAll: "تصفح الكل", selectedWorks: "أعمال مختارة", noProjects: "لا توجد مشاريع بعد.",
+        allNewTitle: "آخر التحديثات والأخبار", projectOverview: "نظرة عامة على المشروع", comments: "التعليقات",
+        postComment: "نشر التعليق", letsCollaborate: "دعنا نتعاون", sendMessage: "إرسال الرسالة"
+      }
+    };
+
+    // =========================
+    // Tiny icon helpers بدل lucide-react
+    // =========================
+    const Icon = ({ children, className = "" }) => <span className={className}>{children}</span>;
+    const Cpu = (p) => <Icon {...p}>⚙️</Icon>;
+    const Globe = (p) => <Icon {...p}>🌐</Icon>;
+    const Lock = (p) => <Icon {...p}>🔒</Icon>;
+    const Menu = (p) => <Icon {...p}>☰</Icon>;
+    const X = (p) => <Icon {...p}>✕</Icon>;
+    const Eye = (p) => <Icon {...p}>👁️</Icon>;
+    const Star = (p) => <Icon {...p}>⭐</Icon>;
+    const MessageSquare = (p) => <Icon {...p}>💬</Icon>;
+    const Send = (p) => <Icon {...p}>📨</Icon>;
+    const Mail = (p) => <Icon {...p}>✉️</Icon>;
+    const Layers = (p) => <Icon {...p}>🧩</Icon>;
+    const Edit = (p) => <Icon {...p}>✏️</Icon>;
+    const UploadCloud = (p) => <Icon {...p}>⤴️</Icon>;
+    const ChevronRight = (p) => <Icon {...p}>→</Icon>;
+    const ChevronLeft = (p) => <Icon {...p}>←</Icon>;
+
+    const SOCIAL_ICONS = {
+      behance: Layers, instagram: Globe, linkedin: Globe, youtube: Globe,
+      facebook: Globe, tiktok: Globe, twitter: Globe
+    };
+
+    // =========================
+    // Image compression
+    // =========================
+    const compressImage = (file, maxKB = 800) => {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+          const img = new Image();
+          img.src = event.target.result;
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            let quality = 0.8;
+            const MAX_DIM = 1200;
+
+            if (width > MAX_DIM || height > MAX_DIM) {
+              const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
+              width = Math.round(width * ratio);
+              height = Math.round(height * ratio);
+            }
+
+            const run = () => {
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, width, height);
+              const dataUrl = canvas.toDataURL('image/jpeg', quality);
+              const sizeKB = (dataUrl.length * 0.75) / 1024;
+
+              if (sizeKB > maxKB && quality > 0.2) {
+                quality -= 0.15;
+                width *= 0.9;
+                height *= 0.9;
+                run();
+              } else {
+                resolve(dataUrl);
+              }
+            };
+
+            run();
+          };
+          img.onerror = reject;
+        };
+        reader.onerror = reject;
+      });
+    };
+
+    const uploadImageFile = async (file) => {
+      if (!file) return null;
+      if (typeof file === 'string') return file;
+      return await compressImage(file);
+    };
+
+    // =========================
+    // Main app
+    // =========================
+    function App() {
+      const [firebaseReady, setFirebaseReady] = useState(false);
+      const [user, setUser] = useState(null);
+      const [currentRoute, setCurrentRoute] = useState('/');
+      const [isAdmin, setIsAdmin] = useState(false);
+      const [lang, setLang] = useState('ar');
+      const [projects, setProjects] = useState([]);
+      const [news, setNews] = useState([]);
+      const [comments, setComments] = useState([]);
+      const [messages, setMessages] = useState([]);
+      const [analytics, setAnalytics] = useState({ visitors: 0, pageViews: 0 });
+      const [siteConfig, setSiteConfig] = useState({
+        logoUrl: '',
+        heroImage: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&q=80&w=1000',
+        aboutText_en: 'Creative designer specializing in graphics, videos, websites, apps, branding, and AI-powered design solutions.',
+        aboutText_ar: 'مصمم مبدع متخصص في الجرافيك والفيديو والمواقع والتطبيقات والعلامات التجارية وحلول التصميم المدعومة بالذكاء الاصطناعي.',
+        social: {}
+      });
+      const [isLoading, setIsLoading] = useState(true);
+      const hasTrackedVisitor = useRef(false);
+
+      const navigate = (path) => setCurrentRoute(path);
+      const t = T[lang];
+      const l = (enStr, arStr) => lang === 'ar' ? (arStr || enStr || '') : (enStr || arStr || '');
+
+      useEffect(() => {
+        let app, auth, db;
+        try {
+          app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+          auth = firebase.auth();
+          db = firebase.firestore();
+
+          auth.signInAnonymously().catch(console.error);
+          const unsubAuth = auth.onAuthStateChanged(async (u) => {
+            setUser(u || null);
+            setFirebaseReady(true);
+          });
+
+          return () => unsubAuth && unsubAuth();
+        } catch (e) {
+          console.error('Firebase init error:', e);
+          setFirebaseReady(true);
+          setIsLoading(false);
+        }
+      }, []);
+
+      useEffect(() => {
+        if (!firebaseReady) return;
+        if (!firebase.apps.length) {
+          setIsLoading(false);
+          return;
+        }
+
+        const db = firebase.firestore();
+        const base = db.collection('artifacts').doc(APP_ID).collection('public').doc('data');
+
+        const trackVisitor = async () => {
+          if (!hasTrackedVisitor.current) {
+            hasTrackedVisitor.current = true;
+            try {
+              await base.collection('stats').doc('analytics').set({ visitors: (analytics.visitors || 0) + 1 }, { merge: true });
+            } catch (_) {}
+          }
+        };
+        trackVisitor();
+
+        const unsubs = [];
+        unsubs.push(base.collection('projects').onSnapshot((snap) => {
+          const arr = snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+          setProjects(arr);
+          setIsLoading(false);
+        }, () => setIsLoading(false)));
+
+        unsubs.push(base.collection('news').onSnapshot((snap) => {
+          setNews(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.created_at || 0) - (a.created_at || 0)));
+        }));
+
+        unsubs.push(base.collection('comments').onSnapshot((snap) => {
+          setComments(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }));
+
+        unsubs.push(base.collection('messages').onSnapshot((snap) => {
+          setMessages(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.created_at || 0) - (a.created_at || 0)));
+        }));
+
+        unsubs.push(base.collection('config').doc('main').onSnapshot((snap) => {
+          if (snap.exists) setSiteConfig(prev => ({ ...prev, ...snap.data() }));
+        }));
+
+        unsubs.push(base.collection('stats').doc('analytics').onSnapshot((snap) => {
+          if (snap.exists) setAnalytics(prev => ({ ...prev, ...snap.data() }));
+        }));
+
+        return () => unsubs.forEach(fn => fn && fn());
+      }, [firebaseReady]);
+
+      useEffect(() => {
+        if (!firebaseReady || !firebase.apps.length) return;
+        if (currentRoute !== '/admin' && isAdmin) setIsAdmin(false);
+        const db = firebase.firestore();
+        db.collection('artifacts').doc(APP_ID).collection('public').doc('data')
+          .collection('stats').doc('analytics')
+          .set({ pageViews: (analytics.pageViews || 0) + 1 }, { merge: true })
+          .catch(() => {});
+        window.scrollTo(0, 0);
+      }, [currentRoute]);
+
+      const renderView = () => {
+        if (isLoading) return <LoadingScreen />;
+        if (currentRoute === '/') return <HomeView navigate={navigate} projects={projects} news={news} config={siteConfig} l={l} t={t} lang={lang} />;
+        if (currentRoute === '/about') return <AboutView config={siteConfig} l={l} t={t} lang={lang} />;
+        if (currentRoute === '/projects') return <ProjectsView navigate={navigate} projects={projects} l={l} t={t} lang={lang} />;
+        if (currentRoute === '/all-new') return <AllNewView news={news} l={l} t={t} lang={lang} />;
+        if (currentRoute.startsWith('/project/')) {
+          const id = currentRoute.split('/')[2];
+          const project = projects.find(p => p.id === id);
+          return <ProjectDetailView project={project} projects={projects} comments={comments.filter(c => c.projectId === id && c.approved !== false)} navigate={navigate} user={user} l={l} t={t} lang={lang} />;
+        }
+        if (currentRoute === '/contact') return <ContactView t={t} />;
+        if (currentRoute === '/admin') return <AdminView isAdmin={isAdmin} setIsAdmin={setIsAdmin} projects={projects} news={news} messages={messages} comments={comments} config={siteConfig} analytics={analytics} />;
+        return <HomeView navigate={navigate} projects={projects} news={news} config={siteConfig} l={l} t={t} lang={lang} />;
+      };
+
+      return (
+        <div dir={lang === 'ar' ? 'rtl' : 'ltr'} className={`min-h-screen bg-[#030712] text-slate-200 selection:bg-cyan-500/30 overflow-x-hidden ${lang === 'ar' ? 'font-arabic' : ''}`}>
+          <div className="fixed inset-0 z-0 pointer-events-none">
+            <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600/20 rounded-full blur-[120px]"></div>
+            <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-cyan-600/20 rounded-full blur-[120px]"></div>
+            <div className="absolute top-[40%] left-[50%] w-[30%] h-[30%] bg-indigo-600/10 rounded-full blur-[100px] transform -translate-x-1/2"></div>
+          </div>
+          <Navigation currentRoute={currentRoute} navigate={navigate} config={siteConfig} lang={lang} setLang={setLang} t={t} />
+          <main className="relative z-10 pt-24 pb-16 min-h-screen flex flex-col">
+            {renderView()}
+          </main>
+          <Footer config={siteConfig} />
+        </div>
+      );
+    }
+
+    const LoadingScreen = () => (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#030712]">
+        <div className="relative flex items-center justify-center">
+          <div className="w-16 h-16 border-t-2 border-b-2 border-cyan-400 rounded-full animate-spin"></div>
+          <div className="absolute w-8 h-8 border-r-2 border-l-2 border-blue-600 rounded-full animate-spin-reverse"></div>
+          <Cpu className="absolute w-4 h-4 text-cyan-400 animate-pulse" />
+        </div>
+      </div>
+    );
+
+    const Navigation = ({ currentRoute, navigate, config, lang, setLang, t }) => {
+      const [isOpen, setIsOpen] = useState(false);
+      const navItems = [
+        { path: '/', label: t.home },
+        { path: '/about', label: t.about },
+        { path: '/projects', label: t.projects },
+        { path: '/all-new', label: t.allNew },
+        { path: '/contact', label: t.contact },
+      ];
+
+      return (
+        <header className="fixed top-0 w-full z-40 bg-[#030712]/70 backdrop-blur-xl border-b border-white/5">
+          <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+            <div className="flex items-center gap-3 cursor-pointer hover:scale-105 transition-transform" onClick={() => navigate('/')}>
+              {config.logoUrl ? (
+                <img src={config.logoUrl} alt="Logo" className="h-10 object-contain" />
+              ) : (
+                <div className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">Bta3 Design</div>
+              )}
+            </div>
+
+            <nav className="hidden md:flex items-center gap-8">
+              {navItems.map(item => (
+                <button key={item.path} onClick={() => navigate(item.path)} className={`text-sm tracking-wider uppercase transition-colors ${currentRoute === item.path ? 'text-cyan-400 font-semibold' : 'text-slate-400 hover:text-white'}`}>
+                  {item.label}
+                </button>
+              ))}
+              <div className="flex items-center gap-4 pl-4 border-l border-white/10 ms-4">
+                <button onClick={() => setLang(lang === 'en' ? 'ar' : 'en')} className="flex items-center gap-2 text-sm text-slate-400 hover:text-cyan-400 transition-colors">
+                  <Globe className="w-4 h-4" /> {lang === 'en' ? 'AR' : 'EN'}
+                </button>
+                <button onClick={() => navigate('/admin')} className="p-2 text-slate-500 hover:text-cyan-400 transition-colors rounded-full hover:bg-white/5">
+                  <Lock className="w-4 h-4" />
+                </button>
+              </div>
+            </nav>
+
+            <button className="md:hidden text-white p-2" onClick={() => setIsOpen(!isOpen)}>
+              {isOpen ? <X /> : <Menu />}
+            </button>
+          </div>
+
+          {isOpen && (
+            <div className="md:hidden absolute top-20 left-0 w-full bg-[#030712]/95 backdrop-blur-3xl border-b border-white/5 flex flex-col items-center py-6 gap-6 shadow-2xl">
+              {navItems.map(item => (
+                <button key={item.path} onClick={() => { navigate(item.path); setIsOpen(false); }} className={`text-lg uppercase tracking-widest ${currentRoute === item.path ? 'text-cyan-400' : 'text-slate-300'}`}>
+                  {item.label}
+                </button>
+              ))}
+              <div className="flex gap-6 mt-4 border-t border-white/10 pt-6">
+                <button onClick={() => { setLang(lang === 'en' ? 'ar' : 'en'); setIsOpen(false); }} className="flex items-center gap-2 text-sm text-slate-400">
+                  <Globe className="w-4 h-4" /> {lang === 'en' ? 'عربي' : 'English'}
+                </button>
+                <button onClick={() => { navigate('/admin'); setIsOpen(false); }} className="flex items-center gap-2 text-sm text-slate-500">
+                  <Lock className="w-4 h-4" /> Admin
+                </button>
+              </div>
+            </div>
+          )}
+        </header>
+      );
+    };
+
+    const Footer = ({ config }) => (
+      <footer className="relative z-10 border-t border-white/5 bg-[#030712]/50 backdrop-blur-lg mt-auto">
+        <div className="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-4">
+            {config.logoUrl && <img src={config.logoUrl} alt="Logo" className="h-8 object-contain opacity-80" />}
+            <div className="text-slate-400 text-sm">© {new Date().getFullYear()} Bta3 Design. All rights reserved.</div>
+          </div>
+          <div className="flex gap-4">
+            {Object.entries(config.social || {}).map(([platform, link]) => {
+              if (!link) return null;
+              const Social = SOCIAL_ICONS[platform] || Globe;
+              return (
+                <a key={platform} href={link} target="_blank" rel="noreferrer" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-cyan-400 hover:border-cyan-400/50 transition-all">
+                  <Social className="w-4 h-4" />
+                </a>
+              );
+            })}
+            <a href="mailto:mkjsssjdjsj@gmail.com" className="w-10 h-10 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-slate-400 hover:text-cyan-400 hover:border-cyan-400/50 transition-all">
+              <Mail className="w-4 h-4" />
+            </a>
+          </div>
+        </div>
+      </footer>
+    );
+
+    const HomeView = ({ navigate, projects, news, config, l, t, lang }) => {
+      const featuredProjects = projects.filter(p => p.featured).slice(0, 4);
+      const latestNews = news.slice(0, 3);
+
+      return (
+        <div className="flex flex-col gap-24 lg:gap-32 w-full animate-fade-in">
+          <section className="max-w-7xl mx-auto px-6 w-full pt-12 md:pt-20 flex flex-col-reverse md:flex-row items-center gap-12">
+            <div className="flex-1 flex flex-col gap-6 text-center md:text-start">
+              <div className="inline-block px-4 py-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 text-cyan-300 text-sm font-medium w-fit mx-auto md:mx-0 shadow-[0_0_15px_rgba(6,182,212,0.2)]">
+                Mohamed Khaled | Bta3 Design
+              </div>
+              <h1 className="text-5xl md:text-7xl font-bold leading-tight tracking-tight">
+                {lang === 'ar' ? 'مصمم مبدع يصنع' : 'Creative Designer Crafting'}<br className="hidden md:block" />
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-indigo-400 animate-gradient-x">
+                  {lang === 'ar' ? 'تجارب بصرية مذهلة' : 'Visual Experiences'}
+                </span>
+              </h1>
+              <p className="text-lg md:text-xl text-slate-400 max-w-2xl font-light leading-relaxed">{l(config.aboutText_en, config.aboutText_ar)}</p>
+              <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 pt-4">
+                <button onClick={() => navigate('/projects')} className="px-8 py-4 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 text-white font-semibold shadow-[0_0_20px_rgba(6,182,212,0.4)] hover:-translate-y-1 transition-all">{t.viewProjects}</button>
+                <button onClick={() => navigate('/contact')} className="px-8 py-4 rounded-xl border border-white/10 bg-white/5 backdrop-blur-md text-white font-semibold hover:bg-white/10 hover:-translate-y-1 transition-all">{t.contactMe}</button>
+              </div>
+            </div>
+            <div className="flex-1 flex justify-center w-full max-w-md md:max-w-none">
+              <div className="relative w-72 h-72 md:w-96 md:h-96 rounded-full group">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-tr from-cyan-400 to-blue-600 blur-2xl opacity-40 group-hover:opacity-60 transition-opacity duration-700 animate-pulse-slow"></div>
+                <div className="absolute inset-2 rounded-full border border-white/20 z-20"></div>
+                <img src={config.heroImage} alt="Profile" className="relative z-10 w-full h-full object-cover rounded-full shadow-2xl filter brightness-90 group-hover:brightness-105 transition-all duration-500" />
+              </div>
+            </div>
+          </section>
+
+          <section className="max-w-7xl mx-auto px-6 w-full">
+            <div className="flex items-end justify-between mb-12">
+              <h2 className="text-3xl md:text-4xl font-bold mb-2 text-white flex items-center gap-3"><Star className="text-cyan-400 w-8 h-8" /> {t.featuredWork}</h2>
+              <button onClick={() => navigate('/projects')} className="hidden md:flex items-center gap-2 text-cyan-400 hover:text-cyan-300 transition-colors group">
+                {t.exploreAll} {lang==='ar' ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              </button>
+            </div>
+            {featuredProjects.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {featuredProjects.map(project => <ProjectCard key={project.id} project={project} onClick={() => navigate(`/project/${project.id}`)} l={l} />)}
+              </div>
+            ) : (
+              <div className="py-20 text-center border border-dashed border-white/10 rounded-2xl bg-white/5 backdrop-blur-sm text-slate-400">{t.noProjects}</div>
+            )}
+          </section>
+
+          {latestNews.length > 0 && (
+            <section className="max-w-7xl mx-auto px-6 w-full relative">
+              <div className="flex items-end justify-between mb-12">
+                <h2 className="text-3xl md:text-4xl font-bold text-white flex items-center gap-3"><Globe className="text-cyan-400 w-8 h-8" /> {t.allNewTitle}</h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {latestNews.map(item => (
+                  <a key={item.id} href={item.link} target="_blank" rel="noreferrer" className="group block bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:-translate-y-2 transition-transform duration-300">
+                    <div className="h-48 overflow-hidden relative"><img src={item.thumbnail || 'https://via.placeholder.com/400'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt=""/></div>
+                    <div className="p-6 relative z-10 bg-[#030712]/50 backdrop-blur-md">
+                      <div className="text-xs text-cyan-400 mb-2">{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</div>
+                      <h3 className="text-xl font-bold mb-2 group-hover:text-cyan-300 transition-colors">{l(item.title_en, item.title_ar)}</h3>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      );
+    };
+
+    const AboutView = ({ config, l, lang }) => (
+      <div className="max-w-7xl mx-auto px-6 w-full animate-fade-in flex flex-col gap-20">
+        <section className="flex flex-col md:flex-row gap-12 items-center bg-white/5 border border-white/10 rounded-3xl p-8 md:p-12 backdrop-blur-xl relative overflow-hidden">
+          <img src={config.heroImage} alt="Profile" className="w-48 h-48 md:w-64 md:h-64 object-cover rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.5)] border border-white/10 relative z-10" />
+          <div className="flex-1 relative z-10">
+            <h1 className="text-4xl md:text-5xl font-bold mb-4">{lang === 'ar' ? 'محمد خالد' : 'Mohamed Khaled'}</h1>
+            <h2 className="text-2xl text-cyan-400 font-medium mb-6">{lang === 'ar' ? 'مؤسس Bta3 Design' : 'Founder of Bta3 Design'}</h2>
+            <p className="text-slate-300 leading-relaxed max-w-2xl text-lg mb-8">{l(config.aboutText_en, config.aboutText_ar)}</p>
+          </div>
+        </section>
+      </div>
+    );
+
+    const AllNewView = ({ news, l, t }) => (
+      <div className="max-w-7xl mx-auto px-6 w-full animate-fade-in flex flex-col min-h-[60vh]">
+        <div className="text-center mb-12"><h1 className="text-4xl md:text-6xl font-bold mb-6">{t.allNewTitle}</h1></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-12">
+          {news.map(item => (
+            <div key={item.id} className="group flex flex-col bg-white/5 border border-white/10 rounded-2xl overflow-hidden hover:-translate-y-2 transition-transform duration-300 shadow-lg">
+              <a href={item.link} target="_blank" rel="noreferrer" className="block relative h-56 overflow-hidden">
+                <img src={item.thumbnail || 'https://via.placeholder.com/600'} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt=""/>
+              </a>
+              <div className="p-6 flex-1 flex flex-col">
+                <h3 className="text-xl font-bold mb-3 text-white group-hover:text-cyan-300 transition-colors">{l(item.title_en, item.title_ar)}</h3>
+                <p className="text-sm text-slate-400 mb-6 flex-1 line-clamp-3">{l(item.desc_en, item.desc_ar)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
+    const ProjectsView = ({ navigate, projects, l, t }) => {
+      const [filter, setFilter] = useState('All');
+      const [search, setSearch] = useState('');
+
+      const filteredProjects = useMemo(() => {
+        return projects.filter(p => {
+          const matchCat = filter === 'All' || p.category === filter;
+          const title = l(p.title_en, p.title_ar) || '';
+          const matchSearch = title.toLowerCase().includes(search.toLowerCase());
+          return matchCat && matchSearch;
+        });
+      }, [projects, filter, search]);
+
+      return (
+        <div className="max-w-7xl mx-auto px-6 w-full animate-fade-in flex flex-col min-h-[60vh]">
+          <div className="text-center mb-12"><h1 className="text-4xl md:text-6xl font-bold mb-6">{t.selectedWorks}</h1></div>
+          <div className="flex flex-col gap-6 mb-12 items-center">
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search..." className="w-full max-w-md bg-[#030712] border border-white/10 rounded-xl px-4 py-3 text-white" />
+            <div className="flex flex-wrap justify-center gap-3">
+              {['All', ...CATEGORIES].map(cat => (
+                <button key={cat} onClick={() => setFilter(cat)} className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${filter === cat ? 'bg-cyan-500 text-white' : 'bg-white/5 text-slate-300 hover:bg-white/10'}`}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 pb-12">
+            {filteredProjects.map(project => <ProjectCard key={project.id} project={project} onClick={() => navigate(`/project/${project.id}`)} l={l} />)}
+          </div>
+        </div>
+      );
+    };
+
+    const ProjectCard = ({ project, onClick, l }) => {
+      const title = l(project.title_en, project.title_ar);
+      const desc = l(project.short_description_en, project.short_description_ar);
+      return (
+        <div onClick={onClick} className="group relative rounded-2xl overflow-hidden cursor-pointer bg-white/5 border border-white/10 flex flex-col h-full transform transition-all hover:-translate-y-2">
+          <div className="relative h-64 overflow-hidden">
+            <img src={project.cover_image || 'https://via.placeholder.com/600'} alt={title} className="w-full h-full object-cover transform transition-transform duration-700 group-hover:scale-110"/>
+          </div>
+          <div className="p-6 flex-1 flex flex-col relative z-20 bg-[#030712]/50 backdrop-blur-md">
+            <div className="text-xs font-semibold text-cyan-400 mb-2">{project.category}</div>
+            <h3 className="text-2xl font-bold text-white mb-3 line-clamp-1">{title}</h3>
+            <p className="text-slate-400 text-sm line-clamp-2 flex-1">{desc}</p>
+            <div className="flex items-center justify-between text-slate-500 text-sm pt-4 border-t border-white/10 mt-4">
+              <div className="flex gap-4"><span className="flex items-center gap-1"><Eye className="w-4 h-4"/> {project.views || 0}</span></div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const ProjectDetailView = ({ project, comments, l, t }) => {
+      const [commentName, setCommentName] = useState('');
+      const [commentText, setCommentText] = useState('');
+      const [currentImageIndex, setCurrentImageIndex] = useState(0);
+      const hasViewed = useRef(false);
+
+      useEffect(() => {
+        if (!project || hasViewed.current || !firebase.apps.length) return;
+        hasViewed.current = true;
+        firebase.firestore().collection('artifacts').doc(APP_ID).collection('public').doc('data')
+          .collection('projects').doc(project.id)
+          .set({ views: (project.views || 0) + 1 }, { merge: true })
+          .catch(() => {});
+      }, [project]);
+
+      if (!project) return <div className="p-20 text-center">Project not found</div>;
+
+      const submitComment = async (e) => {
+        e.preventDefault();
+        if (!firebase.apps.length) return;
+        try {
+          await firebase.firestore().collection('artifacts').doc(APP_ID).collection('public').doc('data')
+            .collection('comments').add({ projectId: project.id, name: commentName, comment: commentText, created_at: Date.now(), approved: true });
+          setCommentName('');
+          setCommentText('');
+        } catch (_) {}
+      };
+
+      const title = l(project.title_en, project.title_ar);
+      const fullDesc = l(project.full_description_en, project.full_description_ar);
+      const images = [project.cover_image, ...(project.gallery_images || [])].filter(Boolean);
+
+      return (
+        <div className="w-full animate-fade-in pb-20">
+          <div className="relative w-full h-[50vh] md:h-[70vh]">
+            <img src={project.cover_image} alt={title} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#030712] via-[#030712]/60 to-transparent"></div>
+            <div className="absolute bottom-0 left-0 w-full max-w-7xl mx-auto px-6 pb-12">
+              <h1 className="text-4xl md:text-6xl font-bold mb-6 text-white">{title}</h1>
+              <div className="flex flex-wrap items-center gap-6 text-sm text-slate-300">
+                <span className="flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md"><Eye className="w-4 h-4 text-cyan-400"/> {project.views || 0}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="max-w-7xl mx-auto px-6 w-full mt-16 grid grid-cols-1 lg:grid-cols-3 gap-16">
+            <div className="lg:col-span-2 space-y-16">
+              <section>
+                <h2 className="text-2xl font-bold mb-6 flex items-center gap-3"><span className="w-8 h-1 bg-cyan-500 rounded-full"></span> {t.projectOverview}</h2>
+                <div className="text-slate-300 text-lg leading-relaxed whitespace-pre-wrap font-light">{fullDesc}</div>
+              </section>
+
+              {images.length > 1 && (
+                <section className="relative rounded-2xl overflow-hidden bg-white/5 border border-white/10 p-2">
+                  <div className="relative aspect-video rounded-xl overflow-hidden group">
+                    <img src={images[currentImageIndex]} alt="Gallery" className="w-full h-full object-contain bg-black/50" />
+                  </div>
+                  <div className="flex justify-center gap-2 mt-4 pb-2 overflow-x-auto">
+                    {images.map((img, i) => (
+                      <button key={i} onClick={() => setCurrentImageIndex(i)} className={`w-16 h-12 rounded-md overflow-hidden border-2 ${i === currentImageIndex ? 'border-cyan-500' : 'border-transparent'}`}>
+                        <img src={img} className="w-full h-full object-cover" alt="thumbnail" />
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+
+              <section className="pt-10 border-t border-white/10">
+                <h2 className="text-2xl font-bold mb-8 flex items-center gap-3"><MessageSquare className="w-6 h-6 text-cyan-400" /> {t.comments}</h2>
+                <form onSubmit={submitComment} className="mb-12 bg-white/5 border border-white/10 p-6 rounded-2xl backdrop-blur-sm">
+                  <input required type="text" placeholder="Name" value={commentName} onChange={e => setCommentName(e.target.value)} className="w-full mb-4 bg-[#030712]/50 border border-white/10 rounded-xl px-4 py-3 text-sm focus:border-cyan-500" />
+                  <textarea required placeholder="..." value={commentText} onChange={e => setCommentText(e.target.value)} className="w-full mb-4 bg-[#030712]/50 border border-white/10 rounded-xl px-4 py-3 text-sm h-32 resize-none focus:border-cyan-500"></textarea>
+                  <button type="submit" className="px-6 py-3 bg-cyan-500 text-[#030712] font-semibold rounded-xl flex items-center gap-2"><Send className="w-4 h-4"/> {t.postComment}</button>
+                </form>
+
+                <div className="space-y-4">
+                  {comments.map(c => (
+                    <div key={c.id} className="p-4 rounded-xl bg-white/5 border border-white/10">
+                      <div className="font-bold text-white mb-1">{c.name}</div>
+                      <div className="text-slate-300 text-sm whitespace-pre-wrap">{c.comment}</div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const ContactView = ({ t }) => {
+      const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
+      const [status, setStatus] = useState('idle');
+
+      const handleSubmit = async (e) => {
+        e.preventDefault();
+        if (!firebase.apps.length) return;
+        setStatus('sending');
+        try {
+          await firebase.firestore().collection('artifacts').doc(APP_ID).collection('public').doc('data')
+            .collection('messages').add({ ...formData, created_at: Date.now(), read: false });
+          setStatus('success');
+          setFormData({ name: '', email: '', subject: '', message: '' });
+          setTimeout(() => setStatus('idle'), 3000);
+        } catch (_) {
+          setStatus('error');
+        }
+      };
+
+      return (
+        <div className="max-w-7xl mx-auto px-6 w-full animate-fade-in flex flex-col items-center">
+          <div className="text-center mb-16">
+            <h1 className="text-4xl md:text-6xl font-bold mb-6"><span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-500">{t.letsCollaborate}</span></h1>
+          </div>
+          <form onSubmit={handleSubmit} className="w-full max-w-lg bg-white/5 border border-white/10 p-8 rounded-3xl backdrop-blur-xl">
+            <input required type="text" placeholder="Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full mb-4 bg-[#030712] border border-white/10 rounded-xl px-4 py-3 text-sm" />
+            <input required type="email" placeholder="Email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full mb-4 bg-[#030712] border border-white/10 rounded-xl px-4 py-3 text-sm" />
+            <input type="text" placeholder="Subject" value={formData.subject} onChange={e => setFormData({...formData, subject: e.target.value})} className="w-full mb-4 bg-[#030712] border border-white/10 rounded-xl px-4 py-3 text-sm" />
+            <textarea required placeholder="Message" value={formData.message} onChange={e => setFormData({...formData, message: e.target.value})} className="w-full mb-4 bg-[#030712] border border-white/10 rounded-xl px-4 py-3 text-sm h-40 resize-none"></textarea>
+            <button type="submit" className="w-full py-4 bg-cyan-500 text-slate-950 font-bold rounded-xl">{t.sendMessage}</button>
+            {status === 'success' && <div className="mt-4 text-emerald-400 text-sm">Message sent successfully.</div>}
+            {status === 'error' && <div className="mt-4 text-rose-400 text-sm">Failed to send message.</div>}
+          </form>
+        </div>
+      );
+    };
+
+    const AdminView = ({ isAdmin, setIsAdmin, projects, news, config }) => {
+      const [password, setPassword] = useState('');
+      const [error, setError] = useState('');
+
+      if (!isAdmin) {
+        return (
+          <div className="flex-1 flex items-center justify-center p-6 min-h-[70vh]" dir="ltr">
+            <form onSubmit={e => { e.preventDefault(); password === ADMIN_PASSWORD ? (setIsAdmin(true), setError('')) : setError('Invalid PIN'); }} className="w-full max-w-sm bg-white/5 border border-white/10 p-8 rounded-3xl backdrop-blur-xl shadow-2xl flex flex-col items-center text-center">
+              <Lock className="w-8 h-8 text-cyan-400 mb-6" />
+              <h2 className="text-2xl font-bold mb-6">Admin Access</h2>
+              <input autoFocus type="password" placeholder="Enter PIN" value={password} onChange={e => setPassword(e.target.value)} className="w-full bg-[#030712]/50 border border-white/10 rounded-xl px-4 py-3 text-center tracking-widest text-lg mb-4" />
+              {error && <p className="text-rose-400 text-sm mb-4">{error}</p>}
+              <button type="submit" className="w-full py-3 bg-cyan-500 text-slate-950 font-bold rounded-xl">Unlock Dashboard</button>
+            </form>
+          </div>
+        );
+      }
+
+      return <DashboardContent projects={projects} news={news} config={config} onLogout={() => setIsAdmin(false)} />;
+    };
+
+    const DashboardContent = ({ projects, news, config, onLogout }) => {
+      const [activeTab, setActiveTab] = useState('projects');
+      const tabs = [
+        { id: 'projects', label: 'Projects', icon: Layers },
+        { id: 'news', label: 'News', icon: Globe },
+        { id: 'config', label: 'Settings', icon: Edit },
+      ];
+
+      return (
+        <div className="max-w-7xl mx-auto px-6 w-full animate-fade-in flex flex-col md:flex-row gap-8 min-h-[70vh]" dir="ltr">
+          <div className="w-full md:w-64 flex flex-col gap-2 shrink-0">
+            <div className="p-6 bg-white/5 border border-white/10 rounded-2xl mb-4">
+              <div className="text-sm font-bold text-white mb-2">Admin Mode</div>
+              <div className="text-xs text-emerald-400">● Connected globally</div>
+            </div>
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-3 px-5 py-4 rounded-xl text-sm font-medium ${activeTab === tab.id ? 'bg-cyan-500/20 text-cyan-300' : 'text-slate-400 hover:bg-white/5'}`}>
+                <tab.icon className="w-5 h-5" /> {tab.label}
+              </button>
+            ))}
+            <button onClick={onLogout} className="mt-auto flex items-center gap-3 px-5 py-4 text-sm text-rose-400 hover:bg-rose-500/10 rounded-xl"><Lock className="w-5 h-5" /> Lock</button>
+          </div>
+          <div className="flex-1 bg-white/5 border border-white/10 rounded-3xl p-6 backdrop-blur-xl">
+            {activeTab === 'projects' && <AdminProjects projects={projects} />}
+            {activeTab === 'news' && <AdminNews news={news} />}
+            {activeTab === 'config' && <AdminConfig config={config} />}
+          </div>
+        </div>
+      );
+    };
+
+    const ImageUploader = ({ label, multiple = false, files, setFiles }) => {
+      const fileInputRef = useRef(null);
+      const handleFiles = (newFiles) => {
+        const arr = Array.from(newFiles || []);
+        if (multiple) setFiles([...(files || []), ...arr]);
+        else setFiles(arr.length ? [arr[0]] : []);
+      };
+
+      return (
+        <div className="space-y-3">
+          <label className="text-sm font-semibold text-slate-300">{label}</label>
+          <div onClick={() => fileInputRef.current?.click()} className="w-full border-2 border-dashed border-white/20 rounded-xl p-8 flex flex-col items-center justify-center cursor-pointer hover:border-cyan-500/50 text-slate-400">
+            <UploadCloud className="w-8 h-8 mb-3" />
+            <p className="text-sm text-center">Click to upload (JPG, PNG)</p>
+            <input ref={fileInputRef} type="file" multiple={multiple} accept="image/*" className="hidden" onChange={(e) => handleFiles(e.target.files)} />
+          </div>
+          {(files || []).length > 0 && (
+            <div className={`grid gap-4 mt-4 ${multiple ? 'grid-cols-4' : 'grid-cols-2'}`}>
+              {files.map((f, i) => (
+                <div key={i} className="relative rounded-lg overflow-hidden border border-white/10 aspect-video">
+                  <img src={typeof f === 'string' ? f : URL.createObjectURL(f)} className="w-full h-full object-cover" alt="Preview" />
+                  <button type="button" onClick={() => setFiles(files.filter((_, idx) => idx !== i))} className="absolute top-1 right-1 p-1 bg-rose-500 rounded text-white">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    const AdminProjects = ({ projects }) => {
+      const [editingProject, setEditingProject] = useState(null);
+      const [formData, setFormData] = useState({});
+      const [coverFiles, setCoverFiles] = useState([]);
+      const [galleryFiles, setGalleryFiles] = useState([]);
+      const [isSaving, setIsSaving] = useState(false);
+
+      const baseCol = () => firebase.firestore().collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('projects');
+
+      const handleSave = async (e) => {
+        e.preventDefault();
+        if (!formData.title_en?.trim() && !formData.title_ar?.trim()) return alert('Title is required');
+        setIsSaving(true);
+        try {
+          let coverUrl = formData.cover_image || '';
+          if (coverFiles[0] && typeof coverFiles[0] !== 'string') coverUrl = await uploadImageFile(coverFiles[0]);
+
+          const galUrls = [];
+          for (const file of galleryFiles) {
+            if (typeof file === 'string') galUrls.push(file);
+            else galUrls.push(await uploadImageFile(file));
+          }
+
+          const dataToSave = { ...formData, cover_image: coverUrl, gallery_images: galUrls, updated_at: Date.now() };
+          Object.keys(dataToSave).forEach(k => dataToSave[k] === undefined && delete dataToSave[k]);
+
+          if (editingProject.isNew) {
+            dataToSave.created_at = Date.now();
+            await baseCol().add(dataToSave);
+          } else {
+            await baseCol().doc(editingProject.id).set(dataToSave, { merge: true });
+          }
+          alert('تم حفظ المشروع بنجاح');
+          setEditingProject(null);
+        } catch (err) {
+          alert(err.message);
+        }
+        setIsSaving(false);
+      };
+
+      if (editingProject) {
+        return (
+          <div className="animate-fade-in">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl font-bold">Edit Project</h2>
+              <button onClick={() => setEditingProject(null)}><X /></button>
+            </div>
+            <form onSubmit={handleSave} className="space-y-6">
+              <input type="text" placeholder="Title (EN)" value={formData.title_en || ''} onChange={e => setFormData({...formData, title_en: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2" />
+              <input type="text" placeholder="Title (AR)" value={formData.title_ar || ''} onChange={e => setFormData({...formData, title_ar: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2" dir="rtl"/>
+              <textarea placeholder="Short description (EN)" value={formData.short_description_en || ''} onChange={e => setFormData({...formData, short_description_en: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2 h-24" />
+              <textarea placeholder="Short description (AR)" value={formData.short_description_ar || ''} onChange={e => setFormData({...formData, short_description_ar: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2 h-24" dir="rtl" />
+              <textarea placeholder="Full description (EN)" value={formData.full_description_en || ''} onChange={e => setFormData({...formData, full_description_en: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2 h-32" />
+              <textarea placeholder="Full description (AR)" value={formData.full_description_ar || ''} onChange={e => setFormData({...formData, full_description_ar: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2 h-32" dir="rtl" />
+              <select value={formData.category || CATEGORIES[0]} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2">
+                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              <label className="flex items-center gap-3 text-sm"><input type="checkbox" checked={!!formData.featured} onChange={(e) => setFormData({...formData, featured: e.target.checked})} /> Featured</label>
+              <ImageUploader label="Cover Image" files={coverFiles} setFiles={setCoverFiles} />
+              <ImageUploader label="Gallery Images" multiple={true} files={galleryFiles} setFiles={setGalleryFiles} />
+              <button type="submit" disabled={isSaving} className="px-6 py-2 bg-cyan-500 text-black font-bold rounded-lg">{isSaving ? 'Saving...' : 'Save Project'}</button>
+            </form>
+          </div>
+        );
+      }
+
+      return (
+        <div>
+          <button onClick={() => { setFormData({ category: CATEGORIES[0] }); setCoverFiles([]); setGalleryFiles([]); setEditingProject({ isNew: true }); }} className="mb-6 px-4 py-2 bg-cyan-500 text-black font-bold rounded-lg">+ Add New</button>
+          <div className="space-y-4">
+            {projects.map(p => (
+              <div key={p.id} className="p-4 bg-white/5 border border-white/10 rounded-xl flex justify-between items-center gap-4">
+                <div className="flex items-center gap-4 min-w-0"><img src={p.cover_image} className="w-16 h-12 object-cover rounded" alt=""/> <div className="truncate">{p.title_en || p.title_ar}</div></div>
+                <div className="shrink-0">
+                  <button onClick={() => { setFormData(p); setCoverFiles(p.cover_image ? [p.cover_image] : []); setGalleryFiles(p.gallery_images || []); setEditingProject(p); }} className="mr-4 text-cyan-400">Edit</button>
+                  <button onClick={async () => { if (confirm('Delete this project?')) await baseCol().doc(p.id).delete(); }} className="text-rose-400">Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    const AdminNews = ({ news }) => {
+      const [editingItem, setEditingItem] = useState(null);
+      const [formData, setFormData] = useState({});
+      const [thumbFiles, setThumbFiles] = useState([]);
+      const [isSaving, setIsSaving] = useState(false);
+
+      const baseCol = () => firebase.firestore().collection('artifacts').doc(APP_ID).collection('public').doc('data').collection('news');
+
+      const handleSave = async (e) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+          let thumbUrl = formData.thumbnail || '';
+          if (thumbFiles[0] && typeof thumbFiles[0] !== 'string') thumbUrl = await uploadImageFile(thumbFiles[0]);
+          const dataToSave = { ...formData, thumbnail: thumbUrl, updated_at: Date.now() };
+          if (editingItem.isNew) {
+            dataToSave.created_at = Date.now();
+            await baseCol().add(dataToSave);
+          } else {
+            await baseCol().doc(editingItem.id).set(dataToSave, { merge: true });
+          }
+          setEditingItem(null);
+        } catch (err) {
+          alert(err.message);
+        }
+        setIsSaving(false);
+      };
+
+      if (editingItem) {
+        return (
+          <form onSubmit={handleSave} className="space-y-6">
+            <input type="text" placeholder="Title EN" value={formData.title_en || ''} onChange={e => setFormData({...formData, title_en: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2" />
+            <input type="text" placeholder="Title AR" value={formData.title_ar || ''} onChange={e => setFormData({...formData, title_ar: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2" dir="rtl" />
+            <textarea placeholder="Description EN" value={formData.desc_en || ''} onChange={e => setFormData({...formData, desc_en: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2 h-24"></textarea>
+            <textarea placeholder="Description AR" value={formData.desc_ar || ''} onChange={e => setFormData({...formData, desc_ar: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2 h-24" dir="rtl"></textarea>
+            <input type="url" placeholder="Link" value={formData.link || ''} onChange={e => setFormData({...formData, link: e.target.value})} className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2" />
+            <ImageUploader label="Thumbnail" files={thumbFiles} setFiles={setThumbFiles} />
+            <button type="submit" disabled={isSaving} className="px-6 py-2 bg-cyan-500 text-black font-bold rounded-lg">{isSaving ? 'Saving...' : 'Save'}</button>
+          </form>
+        );
+      }
+
+      return (
+        <div>
+          <button onClick={() => { setFormData({}); setThumbFiles([]); setEditingItem({isNew: true}); }} className="mb-6 px-4 py-2 bg-cyan-500 text-black font-bold rounded-lg">+ Add News</button>
+          {news.map(n => (
+            <div key={n.id} className="p-4 mb-2 bg-white/5 border border-white/10 rounded-xl flex justify-between items-center gap-4">
+              <div className="flex items-center gap-4 min-w-0"><img src={n.thumbnail} className="w-16 h-12 object-cover rounded" alt=""/> <div className="truncate">{n.title_en || n.title_ar}</div></div>
+              <div className="shrink-0">
+                <button onClick={() => { setFormData(n); setThumbFiles(n.thumbnail ? [n.thumbnail] : []); setEditingItem(n); }} className="mr-4 text-cyan-400">Edit</button>
+                <button onClick={async () => { if (confirm('Delete this news item?')) await baseCol().doc(n.id).delete(); }} className="text-rose-400">Delete</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      );
+    };
+
+    const AdminConfig = ({ config }) => {
+      const [formData, setFormData] = useState({ ...config, social: config.social || {} });
+      const [logoFiles, setLogoFiles] = useState(config.logoUrl ? [config.logoUrl] : []);
+      const [heroFiles, setHeroFiles] = useState(config.heroImage ? [config.heroImage] : []);
+      const [isSaving, setIsSaving] = useState(false);
+
+      const handleSave = async (e) => {
+        e.preventDefault();
+        setIsSaving(true);
+        try {
+          let logoUrl = formData.logoUrl || '';
+          let heroImage = formData.heroImage || '';
+          if (logoFiles[0] && typeof logoFiles[0] !== 'string') logoUrl = await uploadImageFile(logoFiles[0]);
+          if (heroFiles[0] && typeof heroFiles[0] !== 'string') heroImage = await uploadImageFile(heroFiles[0]);
+          await firebase.firestore().collection('artifacts').doc(APP_ID).collection('public').doc('data')
+            .collection('config').doc('main').set({ ...formData, logoUrl, heroImage }, { merge: true });
+          alert('تم الحفظ بنجاح');
+        } catch (err) {
+          alert(err.message);
+        }
+        setIsSaving(false);
+      };
+
+      return (
+        <form onSubmit={handleSave} className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <ImageUploader label="Logo" files={logoFiles} setFiles={setLogoFiles} />
+            <ImageUploader label="Hero Image" files={heroFiles} setFiles={setHeroFiles} />
+          </div>
+          <textarea value={formData.aboutText_en || ''} onChange={e => setFormData({...formData, aboutText_en: e.target.value})} placeholder="About text EN" className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2 h-24"></textarea>
+          <textarea value={formData.aboutText_ar || ''} onChange={e => setFormData({...formData, aboutText_ar: e.target.value})} placeholder="About text AR" className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2 h-24" dir="rtl"></textarea>
+          <input value={formData.social?.instagram || ''} onChange={e => setFormData({...formData, social: { ...(formData.social || {}), instagram: e.target.value }})} placeholder="Instagram URL" className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2" />
+          <input value={formData.social?.behance || ''} onChange={e => setFormData({...formData, social: { ...(formData.social || {}), behance: e.target.value }})} placeholder="Behance URL" className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2" />
+          <input value={formData.social?.youtube || ''} onChange={e => setFormData({...formData, social: { ...(formData.social || {}), youtube: e.target.value }})} placeholder="YouTube URL" className="w-full bg-[#030712] border border-white/10 rounded-lg px-4 py-2" />
+          <button type="submit" disabled={isSaving} className="w-full py-4 bg-cyan-500 text-black font-bold rounded-lg">{isSaving ? 'Saving...' : 'Save Settings'}</button>
+        </form>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
